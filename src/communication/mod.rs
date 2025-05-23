@@ -3,8 +3,11 @@ pub mod server;
 
 use std::str;
 
+use bincode::{Decode, Encode};
+use futures::{SinkExt, StreamExt};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use tokio::sync::oneshot;
+use tokio_util::codec::{FramedRead, FramedWrite, LengthDelimitedCodec};
 
 pub const ADDRESS: &str = "127.0.0.1:8080";
 
@@ -13,21 +16,23 @@ pub const ADDRESS: &str = "127.0.0.1:8080";
 pub enum PacketType {
     PRINT,
     TOAST,
+    INVOKE,
     CONFIRMATION,
     ERR,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Encode, Decode)]
 pub struct PacketHeader {
     target_id: u64,
     packet: Packet,
 }
 
 #[repr(u8)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Encode, Decode)]
 pub enum Packet {
     Print(PrintPacket),
     Toast(ToastPacket),
+    Invoke(InvokePacket),
     Confirmation,
     Err,
 }
@@ -35,6 +40,24 @@ pub enum Packet {
 pub struct PacketSendResult {
     pub id: u64,
     result: oneshot::Receiver<Packet>,
+}
+
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct PrintPacket {
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct ToastPacket {
+    pub title: String,
+    pub body: String,
+}
+
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct InvokePacket {
+    pub class_name: String,
+    pub method_name: String,
+    pub desc: String,
 }
 
 impl PacketSendResult {
@@ -48,6 +71,7 @@ impl Packet {
         match self {
             Packet::Print(_) => PacketType::PRINT,
             Packet::Toast(_) => PacketType::TOAST,
+            Packet::Invoke(_) => PacketType::INVOKE,
             Packet::Confirmation => PacketType::CONFIRMATION,
             Packet::Err => PacketType::ERR,
         }
@@ -77,14 +101,10 @@ impl PacketHeader {
     where
         T: tokio::io::AsyncWriteExt + Unpin,
     {
-        output.write_u8(self.packet_type().into()).await?;
-        output.write_u64(self.target_id).await?;
-        match &self.packet {
-            Packet::Print(packet) => packet.write(output).await?,
-            Packet::Toast(packet) => packet.write(output).await?,
-            _ => {} // empty packets
-        }
-        output.flush().await
+        let mut writer = FramedWrite::new(output, LengthDelimitedCodec::new());
+
+        let res = bincode::encode_to_vec(self, bincode::config::standard()).unwrap();
+        writer.send(res.into()).await
     }
 
     pub async fn read<T>(input: &mut T) -> std::io::Result<Self>
@@ -92,35 +112,15 @@ impl PacketHeader {
         Self: Sized,
         T: tokio::io::AsyncReadExt + Unpin,
     {
-        let packet_type = input.read_u8().await?;
-        let target_id = input.read_u64().await?;
-        match PacketType::try_from(packet_type) {
-            Ok(PacketType::PRINT) => PrintPacket::read(input).await.map(Packet::Print),
-            Ok(PacketType::TOAST) => ToastPacket::read(input).await.map(Packet::Toast),
-            Ok(PacketType::CONFIRMATION) => Ok(Packet::Confirmation),
-            Ok(PacketType::ERR) => Ok(Packet::Err),
-            Err(_) => Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                "Unknown packet type",
-            )),
-        }
-        .map(|packet| PacketHeader { target_id, packet })
+        let mut reader = FramedRead::new(input, LengthDelimitedCodec::new());
+        let bytes = reader.next().await.unwrap()?;
+
+        Ok(
+            bincode::decode_from_slice(&bytes, bincode::config::standard())
+                .unwrap()
+                .0,
+        )
     }
-}
-
-trait Packetable {
-    async fn write<T>(&self, output: &mut T) -> std::io::Result<()>
-    where
-        T: tokio::io::AsyncWriteExt + Unpin;
-    async fn read<T>(input: &mut T) -> std::io::Result<Self>
-    where
-        Self: Sized,
-        T: tokio::io::AsyncReadExt + Unpin;
-}
-
-#[derive(Debug, Clone)]
-pub struct PrintPacket {
-    pub message: String,
 }
 
 impl PrintPacket {
@@ -129,86 +129,8 @@ impl PrintPacket {
     }
 }
 
-impl Packetable for PrintPacket {
-    async fn write<T>(&self, output: &mut T) -> std::io::Result<()>
-    where
-        T: tokio::io::AsyncWriteExt + Unpin,
-    {
-        let message_bytes = self.message.as_bytes();
-        let length = message_bytes.len() as u32;
-        output.write_u32(length).await?;
-        output.write_all(message_bytes).await?;
-        Ok(())
-    }
-
-    async fn read<T>(input: &mut T) -> std::io::Result<Self>
-    where
-        Self: Sized,
-        T: tokio::io::AsyncReadExt + Unpin,
-    {
-        let length = input.read_u32().await?;
-
-        let mut message_buf = vec![0u8; length as usize];
-        input.read_exact(&mut message_buf).await?;
-
-        let message = String::from_utf8(message_buf)
-            .map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidData, "Invalid UTF-8"))?;
-
-        Ok(PrintPacket { message })
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct ToastPacket {
-    pub title: String,
-    pub body: String,
-}
-
 impl ToastPacket {
     pub fn new(title: String, body: String) -> Packet {
         Packet::Toast(ToastPacket { title, body })
-    }
-}
-
-impl Packetable for ToastPacket {
-    async fn write<T>(&self, output: &mut T) -> std::io::Result<()>
-    where
-        T: tokio::io::AsyncWriteExt + Unpin,
-    {
-        let title_bytes = self.title.as_bytes();
-        let body_bytes = self.body.as_bytes();
-        let title_length = title_bytes.len() as u32;
-        let body_length = body_bytes.len() as u32;
-
-        output.write_u32(title_length).await?;
-        output.write_all(title_bytes).await?;
-        output.write_u32(body_length).await?;
-        output.write_all(body_bytes).await?;
-
-        Ok(())
-    }
-
-    async fn read<T>(input: &mut T) -> std::io::Result<Self>
-    where
-        Self: Sized,
-        T: tokio::io::AsyncReadExt + Unpin,
-    {
-        let title_length = input.read_u32().await?;
-
-        let mut title_buf = vec![0u8; title_length as usize];
-        input.read_exact(&mut title_buf).await?;
-
-        let title = String::from_utf8(title_buf)
-            .map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidData, "Invalid UTF-8"))?;
-
-        let body_length = input.read_u32().await?;
-
-        let mut body_buf = vec![0u8; body_length as usize];
-        input.read_exact(&mut body_buf).await?;
-
-        let body = String::from_utf8(body_buf)
-            .map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidData, "Invalid UTF-8"))?;
-
-        Ok(ToastPacket { title, body })
     }
 }

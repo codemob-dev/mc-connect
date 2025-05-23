@@ -1,4 +1,4 @@
-package com.codemob;
+package com.codemob.mcconnect;
 
 import java.lang.instrument.Instrumentation;
 import java.util.Arrays;

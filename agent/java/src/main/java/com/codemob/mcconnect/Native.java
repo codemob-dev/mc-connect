@@ -1,4 +1,4 @@
-package com.codemob;
+package com.codemob.mcconnect;
 
 public class Native {
     public static void load(String lib) {

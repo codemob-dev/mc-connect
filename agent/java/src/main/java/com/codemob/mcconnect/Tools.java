@@ -1,4 +1,4 @@
-package com.codemob;
+package com.codemob.mcconnect;
 
 import org.jetbrains.annotations.Nullable;
 

@@ -1,8 +1,5 @@
-// src/lib.rs
-pub mod communication;
-
-use communication::server::ServerPacketManager;
-use communication::{ADDRESS, Packet};
+use mc_connect::communication::server::ServerPacketManager;
+use mc_connect::communication::{ADDRESS, Packet};
 
 use jni::objects::JClass;
 use jni::{JNIEnv, JavaVM};
@@ -10,7 +7,10 @@ use tokio::net::TcpListener;
 
 #[tokio::main]
 #[unsafe(no_mangle)]
-pub async extern "system" fn Java_com_codemob_Native_init(env: JNIEnv<'_>, _class: JClass<'_>) {
+pub async extern "system" fn Java_com_codemob_mcconnect_Native_init(
+    env: JNIEnv<'_>,
+    _class: JClass<'_>,
+) {
     let vm: JavaVM = env.get_java_vm().unwrap();
     let _ = tokio::spawn(async move {
         let listener = TcpListener::bind(ADDRESS)
@@ -27,7 +27,7 @@ pub async extern "system" fn Java_com_codemob_Native_init(env: JNIEnv<'_>, _clas
         packet_manager
             .start_listening(move |packet| {
                 let mut env = vm.attach_current_thread_as_daemon().unwrap();
-                let tools_class = env.find_class("com/codemob/Tools").unwrap();
+                let tools_class = env.find_class("com/codemob/mcconnect/Tools").unwrap();
 
                 match packet {
                     Packet::Print(print_packet) => {

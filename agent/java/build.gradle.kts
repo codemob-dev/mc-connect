@@ -2,8 +2,8 @@ plugins {
     id("java")
     id("com.github.johnrengelman.shadow") version "7.1.2"
 }
-group = "com.codemob"
-version = "1.0-SNAPSHOT"
+group = "com.codemob.mcconnect"
+version = "1.0"
 
 repositories {
     mavenCentral()
@@ -16,10 +16,10 @@ dependencies {
 
 tasks.shadowJar {
     archiveClassifier.set("") // makes it overwrite the default JAR
-    mergeServiceFiles() // useful if using SPI (optional)
+    mergeServiceFiles()
     manifest {
         attributes(
-            "Agent-Class" to "com.codemob.RustAgent",
+            "Agent-Class" to "com.codemob.mcconnect.RustAgent",
             "Can-Redefine-Classes" to "true",
             "Can-Retransform-Classes" to "true"
         )

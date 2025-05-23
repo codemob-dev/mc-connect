@@ -5,9 +5,12 @@ edition = "2024"
 build = "build.rs"
 
 [lib]
-name = "rust_agent"
-path = "src/agent.rs"
-crate-type = ["cdylib"]
+
+
+[workspace]
+members = [
+    "agent"
+]
 
 
 [dependencies]

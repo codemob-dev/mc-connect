@@ -32,9 +32,7 @@ dependencies = [
 name = "agent"
 version = "0.1.0"
 dependencies = [
- "jni",
  "mc-connect",
- "tokio",
 ]
 
 [[package]]

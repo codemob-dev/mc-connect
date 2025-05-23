@@ -1,5 +1,5 @@
 use std::{
-    env::current_exe,
+    env::{self, current_exe},
     fs::{self, File, set_permissions},
     io::Write,
     os::unix::fs::PermissionsExt,
@@ -15,7 +15,7 @@ use tokio::net::TcpStream;
 
 use crate::communication::{ADDRESS, client::ClientPacketManager};
 
-const AGENT_JAR: &[u8] = include_bytes!("agent/agent.jar");
+const AGENT_JAR: &[u8] = include_bytes!("../agent/java/build/libs/agent-1.0.jar");
 
 fn write_agent_jar(dir: &Path) -> std::io::Result<String> {
     let path = dir.join("agent.jar");
@@ -41,13 +41,19 @@ impl MinecraftInstance {
         let agent_jar =
             write_agent_jar(process.cwd().unwrap()).expect("Failed to write embedded agent JAR");
 
-        let lib = current_exe()
-            .unwrap()
-            .parent()
-            .unwrap()
-            .join("librust_agent.so");
-        let out = process.cwd().unwrap().join("librust_agent.so");
-        fs::copy(lib, &out).expect("Failed to copy library");
+        let lib = current_exe().unwrap().parent().unwrap().join("libagent.so");
+        let out = process.cwd().unwrap().join("libagent.so");
+        fs::copy(lib, &out).unwrap_or_else(|_| {
+            let lib = current_exe()
+                .unwrap()
+                .parent()
+                .unwrap()
+                .parent()
+                .unwrap()
+                .join("libagent.so");
+            let out = process.cwd().unwrap().join("libagent.so");
+            fs::copy(lib, &out).expect("Failed to copy library")
+        });
 
         let current_thread = thread::current();
 
@@ -157,4 +163,8 @@ pub async fn find_and_connect() -> MinecraftInstance {
     MinecraftInstance::load(process, &pid.to_string(), version.clone())
         .await
         .unwrap()
+}
+
+pub fn is_running_in_mc() -> bool {
+    env::var_os("IN_MC") == Some("true".into())
 }

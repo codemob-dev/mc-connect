@@ -1,8 +1,4 @@
-use initialization::find_and_connect;
-
-pub mod communication;
-pub mod initialization;
-pub mod minecraft;
+use mc_connect::initialization::find_and_connect;
 
 #[tokio::main]
 async fn main() {

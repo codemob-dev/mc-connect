@@ -1,4 +1,4 @@
-package com.codemob;
+package com.codemob.mcconnect;
 
 import net.fabricmc.mappingio.MappingReader;
 import net.fabricmc.mappingio.tree.MappingTreeView;

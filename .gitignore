@@ -1,2 +1,2 @@
 /target
-*.jar
+src/agent/agent.jar

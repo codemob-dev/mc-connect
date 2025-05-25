@@ -8,21 +8,15 @@ build = "build.rs"
 
 
 [workspace]
-members = [
-    "agent"
-]
+members = ["agent", "example"]
 
 
 [dependencies]
+anyhow = "1.0.98"
 bincode = { version = "2.0.1" }
 futures = "0.3.31"
 itertools = "0.14.0"
 jni = { version = "0.21.1", features = ["invocation"] }
-lazy_static = "1.5.0"
-num_enum = "0.7.3"
 sysinfo = "0.35.1"
-tempfile = "3.20.0"
 tokio = { version = "1.45.0", features = ["full"] }
 tokio-util = { version = "0.7.15", features = ["full"] }
-which = "7.0.3"
-zip = "3.0.0"

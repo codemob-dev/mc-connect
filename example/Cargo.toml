@@ -1,13 +1,15 @@
 [package]
-name = "agent"
+name = "example"
 version = "0.1.0"
 edition = "2024"
 
+
 [lib]
 crate-type = ["cdylib"]
+path = "src/lib.rs"
+
 
 [dependencies]
 jni = "0.21.1"
-libloading = "0.8.7"
 mc-connect = { version = "0.1.0", path = ".." }
 tokio = { version = "1.45.0", features = ["full"] }

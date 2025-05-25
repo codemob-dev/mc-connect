@@ -1,3 +1,4 @@
+use libloading::{Library, Symbol};
 use mc_connect::communication::server::ServerPacketManager;
 use mc_connect::communication::{ADDRESS, Packet};
 
@@ -47,8 +48,15 @@ pub async extern "system" fn Java_com_codemob_mcconnect_Native_init(
                         .unwrap();
                         Packet::Confirmation
                     }
+                    Packet::Run(packet) => unsafe {
+                        let lib = Library::new(packet.lib).unwrap();
+                        let func: Symbol<unsafe extern "C" fn(&JavaVM)> =
+                            lib.get(packet.func.as_bytes()).unwrap();
+                        func(&vm);
+                        Packet::Confirmation
+                    },
                     packet => {
-                        eprintln!("Invalid packet type recieved: {:?}", packet.packet_type());
+                        eprintln!("Invalid packet recieved: {:?}", packet);
                         Packet::Err
                     }
                 }

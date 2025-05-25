@@ -5,6 +5,7 @@ import java.util.Arrays;
 
 public class RustAgent {
     public static YarnMappingResolver mappingResolver;
+    public static String version;
     public static ClassLoader classLoader;
     public static void agentmain(String agentArgs, Instrumentation inst) throws Exception {
         classLoader = Arrays.stream(inst.getAllLoadedClasses())
@@ -12,7 +13,7 @@ public class RustAgent {
                 .findFirst()
                 .orElseThrow()
                 .getClassLoader();
-        String version = MinecraftVersionResolver.resolveVersion();
+        version = MinecraftVersionResolver.resolveVersion();
         mappingResolver = new YarnMappingResolver(version);
         Native.load(agentArgs);
         Native.init();

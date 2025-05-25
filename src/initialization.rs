@@ -3,7 +3,7 @@ use std::{
     fs::{self, File, set_permissions},
     io::Write,
     os::unix::fs::PermissionsExt,
-    path::Path,
+    path::{Path, PathBuf},
     thread::{self, sleep},
     time::Duration,
 };
@@ -31,12 +31,13 @@ fn write_agent_jar(dir: &Path) -> std::io::Result<String> {
     Ok(path.display().to_string())
 }
 
-pub struct MinecraftInstance {
+pub struct MinecraftProcess {
     pub version: String,
     pub packet_manager: ClientPacketManager,
+    pub dotminecraft: PathBuf,
 }
 
-impl MinecraftInstance {
+impl MinecraftProcess {
     pub async fn load(process: &Process, pid: &str, version: String) -> jni::errors::Result<Self> {
         let agent_jar =
             write_agent_jar(process.cwd().unwrap()).expect("Failed to write embedded agent JAR");
@@ -117,6 +118,7 @@ impl MinecraftInstance {
         Ok(Self {
             packet_manager: ClientPacketManager::new(stream),
             version,
+            dotminecraft: process.cwd().unwrap().to_path_buf(),
         })
     }
 }
@@ -144,7 +146,7 @@ fn load_jvm() -> JavaVM {
     JavaVM::new(jvm_args).unwrap()
 }
 
-pub async fn find_and_connect() -> MinecraftInstance {
+pub async fn find_and_connect() -> MinecraftProcess {
     let s = System::new_all();
     use std::ffi::OsStr;
     let mut processes = s
@@ -160,7 +162,7 @@ pub async fn find_and_connect() -> MinecraftInstance {
         .next()
         .unwrap_or_else(|| panic!("No Minecraft process found"));
     println!("Found Minecraft version: {}\nPID: {}", version, pid);
-    MinecraftInstance::load(process, &pid.to_string(), version.clone())
+    MinecraftProcess::load(process, &pid.to_string(), version.clone())
         .await
         .unwrap()
 }

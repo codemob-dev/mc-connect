@@ -46,7 +46,7 @@ impl ClientPacketManager {
                                 eprintln!("No sender found for packet ID: {}", packet.target_id);
                             }
                         } else {
-                            eprintln!("Invalid packet recieved: {:?}", packet.packet_type());
+                            eprintln!("Invalid packet recieved: {:?}", packet);
                         }
                     }
                     Err(e) => {

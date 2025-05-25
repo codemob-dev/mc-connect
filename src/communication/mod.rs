@@ -1,34 +1,23 @@
 pub mod client;
 pub mod server;
 
-use std::{path::PathBuf, process::Command};
+use std::path::PathBuf;
 
 use bincode::{Decode, Encode};
 use futures::{SinkExt, StreamExt};
-use num_enum::{IntoPrimitive, TryFromPrimitive};
 use tokio::sync::oneshot;
 use tokio_util::codec::{FramedRead, FramedWrite, LengthDelimitedCodec};
 
 pub const ADDRESS: &str = "127.0.0.1:8080";
 
-#[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, IntoPrimitive, TryFromPrimitive)]
-pub enum PacketType {
-    PRINT,
-    TOAST,
-    INVOKE,
-    CONFIRMATION,
-    ERR,
-}
-
-#[derive(Debug, Clone, Encode, Decode)]
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct PacketHeader {
     target_id: u64,
     packet: Packet,
 }
 
 #[repr(u8)]
-#[derive(Debug, Clone, Encode, Decode)]
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub enum Packet {
     Print(PrintPacket),
     Toast(ToastPacket),
@@ -43,71 +32,28 @@ pub struct PacketSendResult {
     result: oneshot::Receiver<Packet>,
 }
 
-#[derive(Debug, Clone, Encode, Decode)]
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct PrintPacket {
     pub message: String,
 }
 
-#[derive(Debug, Clone, Encode, Decode)]
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct ToastPacket {
     pub title: String,
     pub body: String,
 }
 
-#[derive(Debug, Clone, Encode, Decode)]
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct InvokePacket {
     pub class_name: String,
     pub method_name: String,
     pub desc: String,
 }
 
-#[derive(Debug, Clone, Encode, Decode)]
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct RunPacket {
-    pub command: SendableCommand,
-}
-
-#[derive(Debug, Clone, Encode, Decode)]
-pub struct SendableCommand {
-    pub exe: PathBuf,
-    pub args: Vec<String>,
-    pub current_dir: PathBuf,
-    pub env_vars: Vec<(String, Option<String>)>,
-}
-
-impl From<Command> for SendableCommand {
-    fn from(value: Command) -> Self {
-        Self {
-            exe: value.get_program().into(),
-            args: value
-                .get_args()
-                .map(|s| s.to_string_lossy().into_owned())
-                .collect(),
-            current_dir: value.get_current_dir().unwrap().to_owned(),
-            env_vars: value
-                .get_envs()
-                .map(|(key, val)| {
-                    (
-                        key.to_string_lossy().into_owned(),
-                        val.map(|val| val.to_string_lossy().into_owned()),
-                    )
-                })
-                .collect(),
-        }
-    }
-}
-
-impl From<SendableCommand> for Command {
-    fn from(value: SendableCommand) -> Self {
-        let mut cmd = Self::new(value.exe);
-        cmd.current_dir(value.current_dir).args(value.args);
-        for (key, val) in value.env_vars {
-            match val {
-                Some(val) => cmd.env(key, val),
-                None => cmd.env_remove(key),
-            };
-        }
-        cmd
-    }
+    pub lib: PathBuf,
+    pub func: String,
 }
 
 impl PacketSendResult {
@@ -175,9 +121,7 @@ impl ToastPacket {
 }
 
 impl RunPacket {
-    pub fn new(command: impl Into<SendableCommand>) -> Packet {
-        Packet::Run(Self {
-            command: command.into(),
-        })
+    pub fn new(lib: PathBuf, func: String) -> Packet {
+        Packet::Run(Self { lib, func })
     }
 }
